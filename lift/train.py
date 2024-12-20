@@ -5,15 +5,16 @@ import torch.utils.data
 from transformers import (
     TrainingArguments,
     Trainer,
-    PreTrainedTokenizer
+    PreTrainedTokenizer,
+    PreTrainedModel
 )
-from .model import load_model, load_optimizer
+from .model import load_model
 from .context_dataset import ContextDataset, DatasetWithSyntheticQA
 from typing import Optional, Type
 from copy import deepcopy
 
 
-def load_trainer(training_dataset: Dataset, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, eval_dataset: Optional[Dataset]=None, model_name_or_path: Optional[str]=None, gather_batches: bool=False, model: Optional[torch.nn.Module]=None, optimizer: Optional[torch.optim.Optimizer]=None, use_lora: bool=False, lora_rank: Optional[int]=None, load_in_4bit: bool=False, load_in_8bit: bool=False, vocab_size: Optional[int]=None):
+def load_trainer(model: PreTrainedModel, training_dataset: Dataset, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, eval_dataset: Optional[Dataset]=None, gather_batches: bool=False, optimizer: Optional[torch.optim.Optimizer]=None):
     """Load the training and the model (if the model is not instantiated).
     Args:
         training_dataset (Dataset):
@@ -34,9 +35,6 @@ def load_trainer(training_dataset: Dataset, tokenizer: PreTrainedTokenizer, trai
     training_args = deepcopy(training_args)
     if gather_batches:
         training_args.gradient_accumulation_steps = len(training_dataset)
-    # If the model is not given, then load the model
-    if model is None:
-        model = load_model(model_name_or_path, use_lora, lora_rank, load_in_4bit, load_in_8bit, vocab_size)
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -48,7 +46,7 @@ def load_trainer(training_dataset: Dataset, tokenizer: PreTrainedTokenizer, trai
     return trainer, model
 
 
-def train(dataset: ContextDataset, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, involve_qa_epochs: int=0, **kwargs):
+def train(model: PreTrainedModel, dataset: ContextDataset, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, involve_qa_epochs: int=0, gather_batches: bool=True):
     """Fine-tune the model and the corresponding tokenizer.
     Args:
         dataset (Dataset): the dataset to train on.
@@ -69,16 +67,31 @@ def train(dataset: ContextDataset, tokenizer: PreTrainedTokenizer, training_args
     # load tokenzier
     torch.cuda.empty_cache()  # Manually release memory
     # Load and finetune the model
-    dataset.disable_qa()
-    trainer, model = load_trainer(dataset, tokenizer, training_args, trainer_cls=Trainer, **kwargs)
+    if isinstance(dataset, DatasetWithSyntheticQA):
+        dataset.disable_qa()
+    trainer, model = load_trainer(
+        model=model,
+        training_dataset=dataset,
+        tokenizer=tokenizer,
+        training_args=training_args,
+        gather_batches=gather_batches,
+    )
     if training_args.num_train_epochs > 0:
         trainer.train()
     # Load the dataset with QA pairs and continue-finetune the model
     if involve_qa_epochs > 0:
-        dataset.enable_qa()
+        if isinstance(dataset, DatasetWithSyntheticQA):
+            dataset.enable_qa()
         training_args_syn = deepcopy(training_args)
         training_args_syn.num_train_epochs = involve_qa_epochs
-        trainer_syn, model = load_trainer(dataset, tokenizer, training_args_syn, model=model, optimizer=trainer.optimizer, trainer_cls=Trainer, **kwargs)
+        trainer_syn, model = load_trainer(
+            model=model,
+            training_dataset=dataset,
+            tokenizer=tokenizer,
+            training_args=training_args_syn,
+            gather_batches=gather_batches,
+            optimizer=trainer.optimizer,
+        )
         trainer_syn.train()
     # Clear cache
     for param in model.parameters():
