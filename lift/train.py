@@ -9,7 +9,7 @@ from transformers import (
     PreTrainedModel
 )
 from .model import load_model
-from .context_dataset import ContextDataset, DatasetWithSyntheticQA
+from .context_dataset import ContextDataset
 from typing import Optional, Type
 from copy import deepcopy
 
