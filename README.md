@@ -6,7 +6,19 @@
 
 ## Quick Start
 
-> TODO
+### Install
+
+For developers, you can install `lift` in the editable mode:
+```sh
+pip install -e .
+```
+
+For common use, you can install `lift` in the static mode:
+```sh
+pip install .
+```
+
+### Train your LIFT models
 
 You can follow the following example to implement LIFT w/o auxiliary tasks.
 
