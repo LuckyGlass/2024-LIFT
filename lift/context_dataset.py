@@ -7,50 +7,6 @@ from transformers import (
 )
 from typing import List, Tuple, Optional
 from copy import deepcopy
-from nltk import sent_tokenize
-from tqdm import tqdm
-from random import randint
-
-
-def apply_qa_template(question: str, answer: Optional[str]=None, evidences: Optional[List[str]]=None, title: Optional[str]=None, context: Optional[str]=None, return_answer: bool=False):
-    """Apply the QA template, used for training.
-    Args:
-        tokenizer (PreTrainedTokenizer): the tokenizer; it should be equipped with a chat template.
-        question (str):
-        answer (str):
-        evidences (list[str]): the evidences; it should be presented as a list of sentences.
-        title (str):
-        prepend_title (bool): OPTIONAL; whether to prompt the model with the title.
-        sent_token (str|None): if specified as non-None value, a `sent_token` will be prepended to each sentence in the evidences.
-    Returns:
-        PAIR (tuple[Tensor, int]): input_ids - the `input_ids` of the model; len_input - the length of the unsupervised texts, including the system prompt, the context, and the question.
-    """
-    prompts = []
-    if title is not None:
-        prompts.append(f"Please answer the following question only based on the article \"{title}\".")
-        if context is not None:
-            prompts.append(f"This is part of the article \"{title}\": \n{context}\n")
-        if evidences is not None:
-            prompts.append(f"Please recite the facts from \"{title}\" that support your answer before answering the question according to the facts.")
-    else:
-        prompts.append("Please answer the following question.")
-        if context is not None:
-            prompts.append(f"This is part of the texts: \"{context}\"")
-        if evidences is not None:
-            prompts.append(f"Please recite the facts from the text that support your answer before answering the question according to the facts.")
-    prompts.append(f"Question:\n{question}\n")
-    if evidences is not None:
-        prompts.append("Please answer in the following format: \"Evidence: <facts>. Answer: <answer>\". Do NOT output anything else.")
-    else:
-        prompts.append("Please answer in the following format: \"Answer: <answer>\". Do NOT output anything else.")
-    if return_answer:
-        if evidences is not None:
-            output = f"Evidence: {' '.join(evidences)} Answer: {answer}"
-        else:
-            output = f"Answer: {answer}"
-        return '\n'.join(prompts), output
-    else:
-        return '\n'.join(prompts)
 
 
 class ContextDataset(Dataset):
