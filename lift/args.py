@@ -46,19 +46,7 @@ class DataTrainingArguments:
             )
         }
     )
-    prepend_title: bool = field(  # TODO: remove this arg
-        default=False,
-        metadata={"help": "If set to True, the first datapoint is \"<bos> Title: [title], Content: \" -> \"[first segment]\", and during evaluation the model is prompted to answer based on the [title] article."}
-    )
-    num_syn_qa: int = field(default=0)  # TODO: move
-    generator_name_or_path: Optional[str] = field(default=None)
-    pad_to_max_length: bool = field(default=True)  # TODO: remove
-    ttt_recite_first: bool = field(default=False)  # TODO: remove
-    ttt_enable_ICL: bool = field(default=True)  # TODO: remove
-    num_timeline_reorder: int = field(default=0)  # TODO: move
-    num_timeline_reorder_events: List[int] = field(default_factory=lambda: [5])  # TODO: move
-    is_sentence_based: bool = field(default=False)  # TODO: move
-
+    
     def __post_init__(self):
         if len(self.num_timeline_reorder_events) == 1:
             self.num_timeline_reorder_events = self.num_timeline_reorder_events[0]

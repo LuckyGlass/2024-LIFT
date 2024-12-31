@@ -17,18 +17,13 @@ from copy import deepcopy
 def load_trainer(model: PreTrainedModel, training_dataset: Dataset, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, eval_dataset: Optional[Dataset]=None, gather_batches: bool=False, optimizer: Optional[torch.optim.Optimizer]=None):
     """Load the training and the model (if the model is not instantiated).
     Args:
-        training_dataset (Dataset):
-        tokenizer (PreTrainedTokenizer):
-        training_args (TrainingArguments):
-        eval_dataset (Dataset): OPTIONAL, default to `None`.
-        model_name_or_path (str): OPTIONAL, default to `None`; if the model is not instantiated, assign it to load the model.
+        model (PreTrainedModel): the model to train.
+        training_dataset (Dataset): the training dataset.
+        tokenizer (PreTrainedTokenizer): the tokenizer.
+        training_args (TrainingArguments): the huggingface training arguments.
+        eval_dataset (Dataset): OPTIONAL; the evaluation dataset.
         gather_batches (bool): OPTIONAL, default to `False`; if `gather_batches=True`, it will force the trainer to update the model only once every epoch; it may lead to more stable gradients.
-        model (Module): OPTIONAL, default to `None`; a model instance.
-        optimizer (Optimizer): OPTIONAL, default to `NONE`; an optimizer instance.
-        use_lora (bool): OPTIONAL, default to `False`; whether to use LoRA.
-        lora_rank (int): OPTIONAL, default to `None`; assign it when `use_lora=True`.
-        load_in_4bit (bool): OPTIONAL, default to `False`; it must be used with `use_lora=True`.
-        load_in_8bit (bool): OPTIONAL, default to `False`; it must be used with `use_lora=True`.
+        optimizer (torch.optim.Optimizer): OPTIONAL; the optimizer to use.
     Returns:
         trainer_model_pair (tuple[Trainer, Module]): the trainer and the model to train.
     """
