@@ -1,2 +1,5 @@
 utils.sh
 *.egg-info
+models
+datasets
+outputs/
