@@ -2,7 +2,7 @@
 #SBATCH -J LooGLE
 #SBATCH -N 1
 #SBATCH -p IAI_SLURM_HGX
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:1
 #SBATCH --qos=16gpu-hgx
 #SBATCH --time=72:00:00
 #SBATCH -o logs/%j-LooGLE-LR3e-6.out.log
@@ -16,12 +16,14 @@ python scripts/test_loogle.py \
     --num_syn_qa 0 \
     --title_option 1 \
     --generator_name_or_path models/Meta-Llama-3-8B-Instruct \
-    --model_name_or_path models/Meta-Llama-3-8B-Instruct \
+    --model_name_or_path models/Llama-3-8B-Instruct-pissa-r128 \
     --model_max_length 7900 \
     --block_size 256 \
     --len_segment 8 \
     --len_offset 3 \
-    --use_lora False \
+    --use_lora True \
+    --lora_rank 128 \
+    --use_pissa True \
     --gather_batches True \
     --involve_qa_epochs 3 \
     --num_train_epochs 2 \
