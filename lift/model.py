@@ -76,7 +76,7 @@ def load_base_model(model_name_or_path: str, load_in_4bit: bool=False, load_in_8
     return model_base
 
 
-def load_model(model_name_or_path: str, use_lora: bool=False, lora_rank: Optional[int]=None, load_in_4bit: bool=False, load_in_8bit: bool=False, vocab_size: Optional[int]=None):
+def load_model(model_name_or_path: str, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, load_in_8bit: bool=False, vocab_size: Optional[int]=None):
     """Load the trainable model.
     Args:
         model_name_or_path (str):
@@ -93,16 +93,19 @@ def load_model(model_name_or_path: str, use_lora: bool=False, lora_rank: Optiona
     # Load the model
     if use_lora:
         # Init LoRA model
-        peft_config = LoraConfig(
-            task_type=TaskType.CAUSAL_LM,
-            target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
-            inference_mode=False,
-            r=lora_rank,
-            lora_alpha=2 * lora_rank,
-            lora_dropout=.0,
-            init_lora_weights='gaussian',
-        )
-        model = get_peft_model(model_base, peft_config)
+        if use_pissa:
+            model = PeftModel.from_pretrained(model_base, model_name_or_path, subfolder="pissa_init", is_trainable=True)
+        else:
+            peft_config = LoraConfig(
+                task_type=TaskType.CAUSAL_LM,
+                target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+                inference_mode=False,
+                r=lora_rank,
+                lora_alpha=2 * lora_rank,
+                lora_dropout=.0,
+                init_lora_weights='gaussian',
+            )
+            model = get_peft_model(model_base, peft_config)
     else:
         model = model_base
     torch.cuda.empty_cache()  # Manually release memory

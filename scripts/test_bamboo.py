@@ -80,9 +80,9 @@ class BambooDataset(ContextDataset):
         return len(self.data) if self.enable_qa_tag else self.num_segments
 
 
-def BambooTrain(model_name_or_path: str, context: str, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, involve_qa_epochs: int=0, use_lora: bool=False, lora_rank: Optional[int]=None, load_in_4bit: bool=False, gather_batches: bool=True, **kwargs):
+def BambooTrain(model_name_or_path: str, context: str, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, involve_qa_epochs: int=0, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, gather_batches: bool=True, **kwargs):
     dataset = BambooDataset(context, tokenizer, model_max_length, block_size, len_segment, len_offset, num_syn_qa)
-    model = load_model(model_name_or_path, use_lora, lora_rank, load_in_4bit, vocab_size=len(tokenizer))
+    model = load_model(model_name_or_path=model_name_or_path, use_lora=use_lora, lora_rank=lora_rank, use_pissa=use_pissa, load_in_4bit=load_in_4bit, vocab_size=len(tokenizer))
     model = train(model, dataset, tokenizer, training_args, involve_qa_epochs, gather_batches)[0]
     return model
 

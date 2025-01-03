@@ -8,7 +8,6 @@ class ModelArguments:
     model_name_or_path: str
     tokenizer_name_or_path: Optional[str] = field(default=None)
     model_max_length: Optional[int] = field(default=None)
-    is_peft_model: bool = field(default=False)  # TODO: auto detect PEFT models
     
     def __post_init__(self):
         if self.tokenizer_name_or_path is None:
@@ -52,10 +51,16 @@ class DataTrainingArguments:
 class CustomTrainingArguments:
     use_lora: bool = field(default=False)
     lora_rank: int = field(default=8)
+    use_pissa: bool = field(default=False)
     load_in_4bit: bool = field(default=False)
     load_in_8bit: bool = field(default=False)
     gather_batches: bool = field(default=False)
     involve_qa_epochs: int = field(default=0)
+    
+    def __post_init__(self):
+        assert not self.load_in_8bit, "8-bit loading is not supported yet."
+        if self.use_pissa:
+            assert self.use_lora, "LoRA must be enabled when using PiSSA."
 
 
 def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any], return_config: bool=False):
