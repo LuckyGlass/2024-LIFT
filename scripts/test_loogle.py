@@ -71,7 +71,6 @@ class LooGLEDataset(ContextDataset):
                 ),
             )
             generator.eval()
-            generator.compile()
             for _ in range(num_syn_qa):
                 self.data.append(self.generate_task(generator, context, context_sent, title, model_max_length))
         self.enable_qa_tag = False
