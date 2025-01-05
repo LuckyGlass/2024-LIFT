@@ -72,6 +72,7 @@ def build_model(script_args, checkpoint_dir, logger):
                 init_lora_weights=script_args.init_weights,
             )
             model = get_peft_model(model, peft_config)
+        model.print_trainable_parameters()
 
     for name, module in model.named_modules():
         if 'norm' in name or 'gate' in name:

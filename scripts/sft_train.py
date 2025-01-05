@@ -148,7 +148,7 @@ def load_lift_dataset(tokenizer: PreTrainedTokenizer, data_args: LIFTDataArgumen
         data_args.num_syn_qa,
         data_args.generator_name_or_path
     )
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer, ignore_index=data_args.ignore_index)
+    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     return dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)
 
 

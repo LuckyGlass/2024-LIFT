@@ -77,8 +77,8 @@ def train(script_args: TrainingArguments, data_modules: Dict):
         logger.info("Load tokenizer from {} over.".format(script_args.model_name_or_path))
     
     # Build model
-    resume_from_checkpoint_dir = get_last_checkpoint(script_args.output_dir)
-    model = build_model(script_args, resume_from_checkpoint_dir)
+    resume_from_checkpoint_dir = get_last_checkpoint(script_args.output_dir, logger)
+    model = build_model(script_args, resume_from_checkpoint_dir, logger)
     if len(tokenizer) > model.get_input_embeddings().weight.shape[0]:
         model.resize_token_embeddings(len(tokenizer))
 

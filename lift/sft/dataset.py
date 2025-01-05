@@ -34,6 +34,7 @@ class LIFTSFTDataset(Dataset, ABC):
                     samples = json.load(f)
                 elif os.path.splitext(data_path)[1] == '.jsonl':
                     samples = list(map(json.loads, f.readlines()))
+            samples = samples[:10]
             self.data = []
             self.batch_ids = []
             total_datapoints = 0
