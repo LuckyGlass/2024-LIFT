@@ -63,11 +63,13 @@ if __name__ == '__main__':
     gpt4_scores = []
     num_resumed = 0
     if os.path.exists(args.output):
-        for sample in f.readlines():
-            sample = json.loads(sample)
-            if 'qa_pairs' in sample:
-                for qa_pair in sample['qa_pairs']:
-                    gpt4_scores.append(qa_pair['scores']['gpt4_score'])
+        with open(args.output, 'r') as f:
+            for sample in f.readlines():
+                num_resumed += 1
+                sample = json.loads(sample)
+                if 'qa_pairs' in sample:
+                    for qa_pair in sample['qa_pairs']:
+                        gpt4_scores.append(qa_pair['scores']['gpt4_score'])
     
     for sample in tqdm.tqdm(samples, total=len(samples), desc='Calculating GPT-4 score'):
         if 'qa_pairs' in sample:
