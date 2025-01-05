@@ -52,6 +52,7 @@ class CustomTrainingArguments:
     use_lora: bool = field(default=False)
     lora_rank: int = field(default=8)
     use_pissa: bool = field(default=False)
+    use_gated_memory: bool = field(default=False, metadata={'help': "Use the gated-memory technique."})
     load_in_4bit: bool = field(default=False)
     load_in_8bit: bool = field(default=False)
     gather_batches: bool = field(default=False)
@@ -61,6 +62,7 @@ class CustomTrainingArguments:
         assert not self.load_in_8bit, "8-bit loading is not supported yet."
         if self.use_pissa:
             assert self.use_lora, "LoRA must be enabled when using PiSSA."
+        assert int(self.use_gated_memory) + int(self.use_lora) <= 1, "LoRA and the gated-memory technique cannot be used simultaneously."
 
 
 def parse_args(class_clusters: tuple[Any|tuple[Any]], no_dict: tuple[Any], return_config: bool=False):

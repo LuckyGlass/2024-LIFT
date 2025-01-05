@@ -14,6 +14,7 @@ from peft import (
 from typing import Optional
 from copy import deepcopy
 import torch
+from .gated_memory.model import GMLlamaForCausalLM
 
 
 def load_tokenizer(tokenizer_name_or_path: str):
@@ -24,7 +25,7 @@ def load_tokenizer(tokenizer_name_or_path: str):
     return tokenizer
 
 
-def load_base_model(model_name_or_path: str, load_in_4bit: bool=False, load_in_8bit: bool=False, vocab_size: Optional[int]=None):
+def load_base_model(model_name_or_path: str, load_in_4bit: bool=False, load_in_8bit: bool=False, vocab_size: Optional[int]=None, use_gated_memory: bool=False):
     """Load the base model.
     Args:
         model_name_or_path (str):
@@ -34,6 +35,40 @@ def load_base_model(model_name_or_path: str, load_in_4bit: bool=False, load_in_8
     Returns:
         model (PreTrainedModel): the base model.
     """
+    if use_gated_memory:  # use_gated_memory should be checked first
+        if load_in_4bit:
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                llm_int8_skip_modules=[f"layers.{i}.self_attn.mem_proj" for i in range(32)]+[f"layers.{i}.self_attn.gate_proj" for i in range(32)] + ["lm_head"]
+            )
+            model = GMLlamaForCausalLM.from_pretrained(
+                model_name_or_path,
+                trust_remote_code=True,
+                device_map="auto",
+                torch_dtype=torch.bfloat16,
+                quantization_config=quantization_config
+            )
+        elif load_in_8bit:
+            raise NotImplementedError
+        else:
+            model = GMLlamaForCausalLM.from_pretrained(
+                model_name_or_path,
+                trust_remote_code=True,
+                device_map="auto",
+                torch_dtype=torch.bfloat16,
+            )
+        for name, param in model.named_parameters():
+            if "norm" in name:
+                param.requires_grad_(False)
+            if "embed_tokens" in name:
+                param.requires_grad_(False)
+            if "lm_head" in name:
+                param.requires_grad_(False)
+        return model
+    
     # We assume `peft` is available...
     from transformers.utils import find_adapter_config_file
     maybe_adapter_path = find_adapter_config_file(model_name_or_path)
@@ -48,13 +83,13 @@ def load_base_model(model_name_or_path: str, load_in_4bit: bool=False, load_in_8
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type='nf4'
+            bnb_4bit_quant_type='nf4',
         )
         model_base = AutoModelForCausalLM.from_pretrained(
             model_name_or_path,
             trust_remote_code=True,
             device_map="auto",
-            torch_dtype = torch.bfloat16,
+            torch_dtype=torch.bfloat16,
             quantization_config=quantization_config,
         )
     elif load_in_8bit:
@@ -63,7 +98,7 @@ def load_base_model(model_name_or_path: str, load_in_4bit: bool=False, load_in_8
         model_base = AutoModelForCausalLM.from_pretrained(
             model_name_or_path,
             trust_remote_code=True,
-            torch_dtype = torch.bfloat16,
+            torch_dtype=torch.bfloat16,
             device_map="auto",
         )
 
