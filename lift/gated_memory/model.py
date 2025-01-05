@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from typing import Optional, Tuple, Unpack, Union, List
+from typing import Optional, Tuple, Union, List
 from transformers.models.llama.modeling_llama import LlamaConfig, logger, apply_rotary_pos_emb, Cache, repeat_kv, math, LlamaAttention, is_flash_attn_greater_or_equal_2_10, FlashAttentionKwargs, StaticCache, _flash_attention_forward, LlamaDecoderLayer, LlamaPreTrainedModel, BaseModelOutputWithPast, DynamicCache, LlamaModel, GenerationMixin, KwargsForCausalLM, CausalLMOutputWithPast
 
 
@@ -162,7 +162,7 @@ class GMLlamaFlashAttention2(GMLlamaAttention):
         use_cache: bool = False,
         cache_position: Optional[torch.LongTensor] = None,
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # will become mandatory in v4.46
-        **kwargs: Unpack[FlashAttentionKwargs],
+        **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         if isinstance(past_key_value, StaticCache):
             raise ValueError(
@@ -482,7 +482,7 @@ class GMLlamaModel(LlamaModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        **flash_attn_kwargs: Unpack[FlashAttentionKwargs],
+        **flash_attn_kwargs,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -643,7 +643,7 @@ class GMLlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
         num_logits_to_keep: int = 0,
-        **kwargs: Unpack[KwargsForCausalLM],
+        **kwargs,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
