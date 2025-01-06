@@ -135,6 +135,9 @@ class LooGLEDataset(ContextDataset):
     def disable_qa(self):
         self.enable_qa_tag = False
     
+    def __len__(self):
+        return len(self.data) if self.enable_qa_tag else self.num_segments
+    
     
 def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, **kwargs):
     dataset = LooGLEDataset(context, title, tokenizer, model_max_length, block_size, len_segment, len_offset, num_syn_qa, title_option, generator_name_or_path)
