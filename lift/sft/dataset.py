@@ -52,12 +52,20 @@ class LIFTSFTDataset(Dataset, ABC):
                         'data': self.data,
                         'batch_st': self.batch_ids
                     }, f)
+        self.description = ['' for _ in range(len(self.data))]
+        for i, (context_seq, full_seq) in enumerate(self.batch_ids):
+            for k, j in enumerate(range(context_seq[0], context_seq[1])):
+                self.description[j] = f"Data {j}, Article {i}, Context {k + 1} / {context_seq[1] - context_seq[0]}"
+            for k, j in enumerate(range(context_seq[1], full_seq[1])):
+                self.description[j] = f"Data {j}, Article {i}, QA {k + 1} / {full_seq[1] - context_seq[1]}"
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        # print('?', i, self.sample_ids[i])
+        import os
+        with open('db.txt', 'a') as f:
+            f.write(f"Device {os.environ['LOCAL_RANK']}, " + self.description[i] + '\n')
         return self.data[i]
     
     @abstractmethod

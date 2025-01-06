@@ -24,6 +24,13 @@ class TrainingArguments(transformers.TrainingArguments):
     optim: str = field(default="adamw_torch")
     model_max_length: int = field(default=512,metadata={"help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},)
     merge : Optional[bool] = field(default=False,metadata={"help": "Merge the PiSSA adapter to the residual model or LoRA to the base model"},)
+    deepspeed_is_zero3: bool = field(default=False, metadata={'help': "It needn't be assigned; the stage of deepspeed."})
+    
+    def __post_init__(self):
+        # deepspeed_enabled = self.deepspeed is not None
+        super().__post_init__()
+        # if deepspeed_enabled:
+        #     self.deepspeed_is_zero3 = self.hf_deepspeed_config.is_zero3()
 
 
 @dataclass

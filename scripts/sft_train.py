@@ -116,24 +116,36 @@ class GeneralTaskSFTDataset(LIFTSFTDataset):
             'labels': labels
         }
     
-    def __init__(self, data_path: str, tokenizer: PreTrainedTokenizer, model_max_length: int, num_article_epochs: int, num_article_qa_epochs: int, cache_path: str, len_segment: int, len_offset: int, block_size: int, num_syn_qa: int, generator_name_or_path: str):
-        generator = AutoModelForCausalLM.from_pretrained(
-            generator_name_or_path,
-            device_map='auto',
-            torch_dtype=torch.bfloat16,
-            quantization_config=BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.bfloat16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type='nf4'
-            ),
-        )
+    def __init__(self, data_path: str, tokenizer: PreTrainedTokenizer, model_max_length: int, num_article_epochs: int, num_article_qa_epochs: int, cache_path: str, len_segment: int, len_offset: int, block_size: int, num_syn_qa: int, generator_name_or_path: str, deepspeed_is_zero3: bool=False):
+        if deepspeed_is_zero3:
+            generator = AutoModelForCausalLM.from_pretrained(
+                generator_name_or_path,
+                torch_dtype=torch.bfloat16,
+                quantization_config=BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type='nf4'
+                ),
+            )
+        else:
+            generator = AutoModelForCausalLM.from_pretrained(
+                generator_name_or_path,
+                # device_map='auto',
+                torch_dtype=torch.bfloat16,
+                quantization_config=BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type='nf4'
+                ),
+            )
         generator.eval()
         super().__init__(data_path, tokenizer, model_max_length, num_article_epochs, num_article_qa_epochs, cache_path, len_segment=len_segment, len_offset=len_offset, block_size=block_size, num_syn_qa=num_syn_qa, generator=generator)
 
 
 
-def load_lift_dataset(tokenizer: PreTrainedTokenizer, data_args: LIFTDataArguments, model_max_length: int) -> Dict:
+def load_lift_dataset(tokenizer: PreTrainedTokenizer, data_args: LIFTDataArguments, model_max_length: int, deepspeed_is_zero3: bool) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     train_dataset = GeneralTaskSFTDataset(
         data_args.data_path,
@@ -146,8 +158,15 @@ def load_lift_dataset(tokenizer: PreTrainedTokenizer, data_args: LIFTDataArgumen
         data_args.len_offset,
         data_args.block_size,
         data_args.num_syn_qa,
-        data_args.generator_name_or_path
+        data_args.generator_name_or_path,
+        deepspeed_is_zero3
     )
+    from lift.sft.trainer import LIFTSFTSampler
+    sampler = LIFTSFTSampler(4, train_dataset.batch_ids, 2, 3)
+    with open('db2.txt', 'w') as f:
+        for k, ids in enumerate(sampler):
+            descs = [train_dataset.description[i] for i in ids]
+            f.write(f"Batch {k}: {descs}\n")
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     return dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)
 
@@ -156,5 +175,5 @@ if __name__ == "__main__":
     parser = HfArgumentParser((TrainingArguments, LIFTDataArguments))
     training_args, data_args = parser.parse_args_into_dataclasses()
     tokenizer = AutoTokenizer.from_pretrained(training_args.model_name_or_path)
-    data_modules = load_lift_dataset(tokenizer, data_args, training_args.model_max_length)
+    data_modules = load_lift_dataset(tokenizer, data_args, training_args.model_max_length, training_args.deepspeed_is_zero3)
     train(training_args, data_modules)

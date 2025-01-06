@@ -19,7 +19,7 @@ deepspeed --master_port=16971 scripts/sft_train.py \
     --num_article_qa_epochs 3 \
     --generator_name_or_path models/Meta-Llama-3-8B-Instruct \
     --num_syn_qa 20 \
-    --deepspeed shells/ds_config_zero2_no_offload.json \
+    --deepspeed shells/ds_config_zero3.json \
     --model_name_or_path models/Llama-3-8B-Instruct-pissa-r128 \
     --full_finetune False \
     --bf16 \
