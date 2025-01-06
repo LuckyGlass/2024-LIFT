@@ -27,8 +27,8 @@ deepspeed --master_port=16971 scripts/sft_train.py \
     --output_dir models/sft \
     --num_train_epochs 5 \
     --model_max_length 8000 \
-    --per_device_train_batch_size 4 \
-    --gradient_accumulation_steps 4 \
+    --per_device_train_batch_size 1 \
+    --gradient_accumulation_steps 16 \
     --save_strategy "epoch" \
     --save_total_limit 1 \
     --learning_rate 2e-5 \
@@ -38,3 +38,4 @@ deepspeed --master_port=16971 scripts/sft_train.py \
     --lr_scheduler_type "cosine" \
     --report_to "wandb" \
     --merge True \
+    --gradient_checkpointing True
