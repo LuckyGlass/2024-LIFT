@@ -66,6 +66,7 @@ class LIFTSFTDataset(Dataset, ABC):
         import os
         with open('db.txt', 'a') as f:
             f.write(f"Device {os.environ['LOCAL_RANK']}, " + self.description[i] + '\n')
+            f.flush()
         return self.data[i]
     
     @abstractmethod

@@ -23,8 +23,10 @@ class LIFTSFTSampler(Sampler):
         for article_ids, article_qa_ids in self.batch_ids:
             article_ids = list(range(article_ids[0], article_ids[1]))
             batch_ids += [article_ids[i:i + self.batch_size] for i in range(0, len(article_ids), self.batch_size)] * self.num_article_epochs
-            article_qa_ids = list(range(article_qa_ids[0], article_qa_ids[1]))
+            batch_ids[-1] = (batch_ids[-1] * self.batch_size)[:self.batch_size]
+            article_qa_ids = list(range(article_qa_ids[0], article_qa_ids[1])) * 2
             batch_ids += [article_qa_ids[i:i + self.batch_size] for i in range(0, len(article_qa_ids), self.batch_size)] * self.num_article_qa_epochs
+            batch_ids[-1] = (batch_ids[-1] * self.batch_size)[:self.batch_size]
         for batch in batch_ids:
             yield batch
     

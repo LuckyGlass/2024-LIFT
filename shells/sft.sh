@@ -19,7 +19,7 @@ deepspeed --master_port=16971 scripts/sft_train.py \
     --num_article_qa_epochs 3 \
     --generator_name_or_path models/Meta-Llama-3-8B-Instruct \
     --num_syn_qa 20 \
-    --deepspeed shells/ds_config_zero3.json \
+    --deepspeed shells/ds_config_zero2_no_offload.json \
     --model_name_or_path models/Llama-3-8B-Instruct-pissa-r128 \
     --full_finetune False \
     --bf16 \
@@ -28,7 +28,7 @@ deepspeed --master_port=16971 scripts/sft_train.py \
     --num_train_epochs 5 \
     --model_max_length 8000 \
     --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 16 \
+    --gradient_accumulation_steps 1 \
     --save_strategy "epoch" \
     --save_total_limit 1 \
     --learning_rate 2e-5 \
