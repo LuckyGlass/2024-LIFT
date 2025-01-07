@@ -67,6 +67,7 @@ def load_base_model(model_name_or_path: str, load_in_4bit: bool=False, load_in_8
                 param.requires_grad_(False)
             if "lm_head" in name:
                 param.requires_grad_(False)
+        print(model)
         return model
     
     # We assume `peft` is available...
@@ -111,7 +112,7 @@ def load_base_model(model_name_or_path: str, load_in_4bit: bool=False, load_in_8
     return model_base
 
 
-def load_model(model_name_or_path: str, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, load_in_8bit: bool=False, vocab_size: Optional[int]=None):
+def load_model(model_name_or_path: str, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, load_in_8bit: bool=False, vocab_size: Optional[int]=None, use_gated_memory: bool=False):
     """Load the trainable model.
     Args:
         model_name_or_path (str):
@@ -124,7 +125,7 @@ def load_model(model_name_or_path: str, use_lora: bool=False, lora_rank: Optiona
     Returns:
         model (PreTrainedModel): the model to train.
     """
-    model_base = load_base_model(model_name_or_path, load_in_4bit, load_in_8bit, vocab_size)
+    model_base = load_base_model(model_name_or_path, load_in_4bit, load_in_8bit, vocab_size, use_gated_memory)
     # Load the model
     if use_lora:
         # Init LoRA model
