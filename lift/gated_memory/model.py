@@ -34,6 +34,14 @@ class GroupedLinear(nn.Module):
             x = x @ self.weight + self.bias.unsqueeze(1)
         return x
 
+class BiasSigmoid(nn.Module):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.mod = nn.Sigmoid()
+
+    def forward(self, x):
+        return self.mod(3*(x - 1))
 
 class GMLlamaAttention(LlamaAttention):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
@@ -49,15 +57,17 @@ class GMLlamaAttention(LlamaAttention):
             GroupedLinear(self.num_heads, memdim, self.head_dim, bias=config.attention_bias),
             )
         gatedim = int(self.head_dim**0.5)
-        tmp = GroupedLinear(self.num_heads, gatedim, 1, bias=True)
+        tmp = GroupedLinear(self.num_heads, gatedim, 1, bias=False)
+        '''
         with torch.no_grad():
-            tmp.bias.fill_(-4)
+            tmp.bias.fill_(0)
             tmp.weight.fill_(0)
+        '''
         self.gate_proj = nn.Sequential(
             GroupedLinear(self.num_heads, self.head_dim, gatedim, bias=config.attention_bias),
             nn.SiLU(inplace=True),
             tmp,
-            nn.Sigmoid()
+            BiasSigmoid()#nn.Sigmoid()
             )
 
     def forward(
