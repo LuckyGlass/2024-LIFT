@@ -42,7 +42,6 @@ def load_base_model(model_name_or_path: str, load_in_4bit: bool=False, load_in_8
                 bnb_4bit_quant_type="nf4",
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_compute_dtype=torch.bfloat16,
-                llm_int8_skip_modules=[f"layers.{i}.self_attn.mem_proj" for i in range(32)]+[f"layers.{i}.self_attn.gate_proj" for i in range(32)] + ["lm_head"]
             )
             model = GMLlamaForCausalLM.from_pretrained(
                 model_name_or_path,
@@ -60,13 +59,9 @@ def load_base_model(model_name_or_path: str, load_in_4bit: bool=False, load_in_8
                 device_map="auto",
                 torch_dtype=torch.bfloat16,
             )
-        for name, param in model.named_parameters():
-            if "norm" in name:
-                param.requires_grad_(False)
-            if "embed_tokens" in name:
-                param.requires_grad_(False)
-            if "lm_head" in name:
-                param.requires_grad_(False)
+        for param in model.parameters():
+            param.requires_grad_(False)
+        model = PeftModel.from_pretrained(model, model_name_or_path, is_trainable=True)
         print(model)
         return model
     
