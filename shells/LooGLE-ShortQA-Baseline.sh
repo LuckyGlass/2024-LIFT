@@ -11,9 +11,9 @@
 
 python scripts/test_loogle.py \
     --input_file datasets/loogle/shortdep_qa.jsonl \
-    --output_file outputs/LooGLE-ShortQA-NSent-30.jsonl \
+    --output_file outputs/LooGLE-ShortQA-Baseline.jsonl \
     --overwrite True \
-    --num_syn_qa 30 \
+    --num_syn_qa 0 \
     --title_option 1 \
     --generator_name_or_path models/Meta-Llama-3-8B-Instruct \
     --use_cot True \
@@ -23,12 +23,10 @@ python scripts/test_loogle.py \
     --block_size 256 \
     --len_segment 8 \
     --len_offset 3 \
-    --use_lora True \
-    --lora_rank 128 \
-    --use_pissa True \
+    --use_lora False \
     --gather_batches True \
-    --involve_qa_epochs 3 \
-    --num_train_epochs 2 \
+    --involve_qa_epochs 0 \
+    --num_train_epochs 0 \
     --remove_unused_columns True \
     --report_to none \
     --output_dir models/temp \
