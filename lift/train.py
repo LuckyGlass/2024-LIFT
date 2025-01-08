@@ -8,7 +8,6 @@ from transformers import (
     PreTrainedTokenizer,
     PreTrainedModel
 )
-from .model import load_model
 from .context_dataset import ContextDataset
 from typing import Optional, Type
 from copy import deepcopy
