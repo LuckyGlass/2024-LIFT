@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J GatedMem
+#SBATCH -J NSent
 #SBATCH -N 1
 #SBATCH -p IAI_SLURM_HGX
 #SBATCH --gres=gpu:1
