@@ -203,7 +203,7 @@ def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Di
                 attention_mask=attention_mask,
                 pad_token_id=tokenizer.pad_token_id,
                 # eos_token_id=terminators,
-                max_new_tokens=512,
+                max_new_tokens=200,
                 use_cache=True,
             )
             response = tokenizer.decode(output[0][input_ids.shape[-1]:], skip_special_tokens=True)
