@@ -59,7 +59,8 @@ class TestArguments:
     title_option: int = field(default=1, metadata={"help": "The title option for the LooGLE dataset."})
     generator_name_or_path: Optional[str] = field(default=None, metadata={"help": "The generator model name or path."})
     use_cot: bool = field(default=False, metadata={'help': "Whether to use CoT in syn. QA and test."})
-    
+    num_test: Optional[int] = field(default=None, metadata={'help': "Test only the first several articles."})
+
 
 class LooGLEDataset(ContextDataset):
     def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False):
@@ -225,6 +226,7 @@ def main():
     input_file = test_args.pop('input_file')
     output_file = test_args.pop('output_file')
     overwrite = test_args.pop('overwrite')
+    num_test = test_args.pop('num_test')
     num_resumed = 0
     if os.path.exists(output_file):
         if overwrite:
@@ -234,6 +236,8 @@ def main():
                 num_resumed = len(f.readlines())
     with open(input_file, 'r') as f:
         input_data = [json.loads(line) for line in f]
+    if num_test is not None:
+        input_data = input_data[:num_test]
     prediction(input_data, training_args, lift_args, output_file, num_resumed=num_resumed, **test_args)
 
 

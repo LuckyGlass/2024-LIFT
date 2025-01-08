@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH -J NSent
+#SBATCH -J Baseline
 #SBATCH -N 1
 #SBATCH -p IAI_SLURM_HGX
 #SBATCH --gres=gpu:1
 #SBATCH --qos=16gpu-hgx
 #SBATCH --time=72:00:00
-#SBATCH -o logs/%j-LooGLE-ShortQA-NSent-30.out.log
-#SBATCH -e logs/%j-LooGLE-ShortQA-NSent-30.err.log
+#SBATCH -o logs/%j-LooGLE-ShortQA-Baseline.out.log
+#SBATCH -e logs/%j-LooGLE-ShortQA-Baseline.err.log
 #SBATCH -c 1
 
 python scripts/test_loogle.py \

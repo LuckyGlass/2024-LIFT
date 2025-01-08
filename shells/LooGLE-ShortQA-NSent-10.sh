@@ -17,6 +17,7 @@ python scripts/test_loogle.py \
     --title_option 1 \
     --generator_name_or_path models/Meta-Llama-3-8B-Instruct \
     --use_cot True \
+    --num_test 50 \
     --model_name_or_path models/Llama-3-8B-Instruct-pissa-r128 \
     --model_max_length 7800 \
     --block_size 256 \
