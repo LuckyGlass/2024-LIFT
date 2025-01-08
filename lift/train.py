@@ -34,7 +34,7 @@ def load_trainer(model: PreTrainedModel, training_dataset: Dataset, tokenizer: P
         args=training_args,
         train_dataset=training_dataset,
         eval_dataset=eval_dataset,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         optimizers=(optimizer, None)
     )
     return trainer, model
