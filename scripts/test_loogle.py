@@ -73,7 +73,9 @@ class LooGLEDataset(ContextDataset):
             )
             generator.eval()
             for _ in range(num_syn_qa):
-                self.data.append(self.generate_task(generator, context, context_sent, title, model_max_length))
+                result = self.generate_task(generator, context, context_sent, title, model_max_length)
+                if result is not None:
+                    self.data.append(result)
         self.enable_qa_tag = False
     
     @torch.no_grad()
@@ -115,6 +117,7 @@ class LooGLEDataset(ContextDataset):
             break
         else:
             logging.warning("Fail to generate a QA pair, skip.")
+            return None
             # raise ValueError("Failed to generate a QA pair.")
         input_text = LOOGLEFORMAT.format(title=title, input=full_context, question=question)
         messages = [
