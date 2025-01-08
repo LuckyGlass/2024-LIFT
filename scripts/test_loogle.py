@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from numpy.random import randint
 from nltk import sent_tokenize
+import logging
 import json
 import os
 import torch
@@ -113,7 +114,8 @@ class LooGLEDataset(ContextDataset):
             evidences = list(map(lambda s: s[s.find('-') + 2:].strip(), evidences))
             break
         else:
-            raise ValueError("Failed to generate a QA pair.")
+            logging.warning("Fail to generate a QA pair, skip.")
+            # raise ValueError("Failed to generate a QA pair.")
         input_text = LOOGLEFORMAT.format(title=title, input=full_context, question=question)
         messages = [
             {'role': 'system', 'content': "You are a helpful assistant."},
