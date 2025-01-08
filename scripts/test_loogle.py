@@ -30,6 +30,24 @@ import tqdm
 
 
 LOOGLEFORMAT = "The article {title}: \n{input}\nPlease answer the question based on {title}.\nQuestion: {question}\nAnswer: "
+LOOGLEFORMAT_COT = """The article {title}:
+{input}
+Please recall one or several original sentences from article {title} as evidence, and then answer the question solely based on this evidence.
+Please answer in the following format:
+
+# Evidence:
+- [evidence 1]
+- [evidence 2]
+...
+# Answer:
+[answer]
+# End of answer
+
+Please DON'T output quotes when outputing evidences.
+# Question:
+{question}
+# Evidence:
+"""
 
 
 @dataclass
@@ -40,10 +58,11 @@ class TestArguments:
     num_syn_qa: int = field(default=0, metadata={"help": "The number of synthetic QA pairs to generate."})
     title_option: int = field(default=1, metadata={"help": "The title option for the LooGLE dataset."})
     generator_name_or_path: Optional[str] = field(default=None, metadata={"help": "The generator model name or path."})
+    use_cot: bool = field(default=False, metadata={'help': "Whether to use CoT in syn. QA and test."})
     
 
 class LooGLEDataset(ContextDataset):
-    def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None):
+    def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False):
         # Option 1: prepend title before context
         if title_option == 1:
             context = title + '\n' + context
@@ -73,13 +92,13 @@ class LooGLEDataset(ContextDataset):
             )
             generator.eval()
             for _ in range(num_syn_qa):
-                result = self.generate_task(generator, context, context_sent, title, model_max_length)
+                result = self.generate_task(generator, context, context_sent, title, model_max_length, use_cot)
                 if result is not None:
                     self.data.append(result)
         self.enable_qa_tag = False
     
     @torch.no_grad()
-    def generate_task(self, generator: PreTrainedModel, full_context: str, context_sent: List[str], title: str, model_max_length: int):
+    def generate_task(self, generator: PreTrainedModel, full_context: str, context_sent: List[str], title: str, model_max_length: int, use_cot: bool=False):
         st_pos = randint(0, len(context_sent) - 25)
         context = ' '.join(context_sent[st_pos:st_pos+25])
         messages = [
@@ -119,7 +138,11 @@ class LooGLEDataset(ContextDataset):
             logging.warning("Fail to generate a QA pair, skip.")
             return None
             # raise ValueError("Failed to generate a QA pair.")
-        input_text = LOOGLEFORMAT.format(title=title, input=full_context, question=question)
+        if use_cot:
+            input_text = LOOGLEFORMAT_COT.format(title=title, input=full_context, question=question)
+            answer = '\n'.join(['- ' + e for e in evidences]) + "\n# Answer:\n" + answer.strip() + "\n# End of answer"
+        else:
+            input_text = LOOGLEFORMAT.format(title=title, input=full_context, question=question)
         messages = [
             {'role': 'system', 'content': "You are a helpful assistant."},
             {'role': 'user', 'content': input_text},
@@ -144,14 +167,14 @@ class LooGLEDataset(ContextDataset):
         return len(self.data) if self.enable_qa_tag else self.num_segments
     
     
-def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_gated_memory: bool=False, **kwargs):
-    dataset = LooGLEDataset(context, title, tokenizer, model_max_length, block_size, len_segment, len_offset, num_syn_qa, title_option, generator_name_or_path)
+def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_gated_memory: bool=False, use_cot: bool=False, **kwargs):
+    dataset = LooGLEDataset(context, title, tokenizer, model_max_length, block_size, len_segment, len_offset, num_syn_qa, title_option, generator_name_or_path, use_cot)
     model = load_model(model_name_or_path=model_name_or_path, use_lora=use_lora, lora_rank=lora_rank, use_pissa=use_pissa, load_in_4bit=load_in_4bit, vocab_size=len(tokenizer), use_gated_memory=use_gated_memory)
     model = train(model, dataset, tokenizer, training_args, involve_qa_epochs, gather_batches)[0]
     return model
 
 
-def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Dict, output_file: str, num_resumed: int=0, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None):
+def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Dict, output_file: str, num_resumed: int=0, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False):
     tokenizer = load_tokenizer(lift_args['tokenizer_name_or_path'])
     mixin = tokenizer("...", add_special_tokens=False)['input_ids']
     model_max_length = lift_args['model_max_length']
@@ -162,22 +185,25 @@ def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Di
         context = sample['input']
         title = sample['title']
         qa_pairs = eval(sample['qa_pairs'])
-        model = LooGLEtrain(context, title, tokenizer, training_args=training_args, num_syn_qa=num_syn_qa, title_option=title_option, generator_name_or_path=generator_name_or_path, **lift_args)
+        model = LooGLEtrain(context, title, tokenizer, training_args=training_args, num_syn_qa=num_syn_qa, title_option=title_option, generator_name_or_path=generator_name_or_path, use_cot=use_cot, **lift_args)
         model.eval()
         for qa_pair in tqdm.tqdm(qa_pairs, desc="QA Pair"):
-            input_text = LOOGLEFORMAT.format(title=title, input=context, question=qa_pair['Q'])
+            if use_cot:
+                input_text = LOOGLEFORMAT_COT.format(title=title, input=context, question=qa_pair['Q'])
+            else:
+                input_text = LOOGLEFORMAT.format(title=title, input=context, question=qa_pair['Q'])
             input_ids = tokenizer(input_text, add_special_tokens=False)['input_ids']
             if len(input_ids) > model_max_length:
                 input_ids = input_ids[:model_max_length//2 - len(mixin)] + mixin + input_ids[-model_max_length//2:]
             input_ids = torch.tensor(input_ids, dtype=torch.long, device=model.device).unsqueeze(0)
             attention_mask = torch.ones_like(input_ids)
-            terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
+            # terminators = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("<|eot_id|>")]
             output = model.generate(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 pad_token_id=tokenizer.pad_token_id,
-                eos_token_id=terminators,
-                max_new_tokens=256,
+                # eos_token_id=terminators,
+                max_new_tokens=512,
                 use_cache=True,
             )
             response = tokenizer.decode(output[0][input_ids.shape[-1]:], skip_special_tokens=True)
@@ -196,12 +222,9 @@ def main():
         (TrainingArguments, TestArguments, (ModelArguments, CustomTrainingArguments, DataTrainingArguments)),
         no_dict=(TrainingArguments,)
     )
-    input_file = test_args['input_file']
-    output_file = test_args['output_file']
-    overwrite = test_args['overwrite']
-    num_syn_qa = test_args['num_syn_qa']
-    title_option = test_args['title_option']
-    generator_name_or_path = test_args['generator_name_or_path']
+    input_file = test_args.pop('input_file')
+    output_file = test_args.pop('output_file')
+    overwrite = test_args.pop('overwrite')
     num_resumed = 0
     if os.path.exists(output_file):
         if overwrite:
@@ -211,7 +234,7 @@ def main():
                 num_resumed = len(f.readlines())
     with open(input_file, 'r') as f:
         input_data = [json.loads(line) for line in f]
-    prediction(input_data, training_args, lift_args, output_file, num_resumed=num_resumed, num_syn_qa=num_syn_qa, title_option=title_option, generator_name_or_path=generator_name_or_path)
+    prediction(input_data, training_args, lift_args, output_file, num_resumed=num_resumed, **test_args)
 
 
 if __name__ == '__main__':
