@@ -71,8 +71,12 @@ model_max_length = args.model_max_length
 tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name_or_path)
 mixin = tokenizer("...", add_special_tokens=False)['input_ids']
 
-with open(source_file, 'r') as f:
-    data = json.load(f)
+try:
+    with open(source_file, 'r') as f:
+        data = json.load(f)
+except json.decoder.JSONDecodeError:
+    with open(source_file, 'r') as f:
+        data = [json.loads(s) for s in f]
 if gpt4score_file is None:
     data_gpt4score = [None for _ in range(len(data))]
 else:
@@ -155,7 +159,7 @@ print(f"Fail                : All       = {num_f:4d} : {num_a:4d} = {num_f / num
 print(f"Correct             : All       = {num_c:4d} : {num_a:4d} = {num_c / num_a * 100:0.2f}")
 print(f"in-ICL x Correct    : in-ICL    = {num_ic:4d} : {num_i:4d} = {num_ic / num_i * 100:0.2f}")
 print(f"out-ICL x Correct   : out-ICL   = {num_oc:4d} : {num_o:4d} = {num_oc / num_o * 100:0.2f}")
-print(f"Retrieved x Correct : Retrieved = {num_rc:4d} : {num_r:4d} = {num_rc / num_r * 100:0.2f}")
+print(f"Retrieved x Correct : Retrieved = {num_rc:4d} : {num_r:4d} = {float('nan') if num_r == 0 else num_rc / num_r * 100:0.2f}")
 print(f"in-ICL              : All       = {num_i:4d} : {num_a:4d} = {num_i / num_a * 100:0.2f}")
 print(f"Retrieved           : All       = {num_r:4d} : {num_a:4d} = {num_r / num_a * 100:0.2f}")
 print(f"in-ICL x Retrieved  : in-ICL    = {num_ir:4d} : {num_i:4d} = {num_ir / num_i * 100:0.2f}")
