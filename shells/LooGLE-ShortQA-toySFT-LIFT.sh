@@ -22,7 +22,9 @@ python scripts/test_loogle.py \
     --block_size 256 \
     --len_segment 8 \
     --len_offset 3 \
-    --use_lora False \
+    --use_lora True \
+    --lora_rank 128 \
+    --use_pissa True \
     --gather_batches True \
     --involve_qa_epochs 0 \
     --num_train_epochs 5 \
