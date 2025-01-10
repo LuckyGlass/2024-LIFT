@@ -15,6 +15,8 @@ python scripts/test_loogle.py \
     --overwrite True \
     --num_syn_qa 0 \
     --title_option 1 \
+    --do_check_memgate True \
+    --output_memgate_file outputs/memgate/LooGLE-ShortQA-Gated-Memory.pkl \
     --model_name_or_path models/Gated-Memory-Llama-3-8B-Instruct \
     --model_max_length 7800 \
     --block_size 256 \
@@ -45,5 +47,5 @@ python scripts/test_loogle.py \
     --tf32 False \
     --gradient_checkpointing True \
     --lr_scheduler_type constant \
-    --num_test 50
+    --num_test 50 \
 

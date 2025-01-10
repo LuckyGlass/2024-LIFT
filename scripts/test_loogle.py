@@ -18,6 +18,7 @@ from lift.args import (
 from lift.context_dataset import ContextDataset
 from lift.model import load_tokenizer, load_model
 from lift.train import train
+from lift.gated_memory.utils import process_ganeration_memgate
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from numpy.random import randint
@@ -25,6 +26,7 @@ from nltk import sent_tokenize
 import logging
 import json
 import os
+import pickle
 import torch
 import tqdm
 
@@ -60,6 +62,12 @@ class TestArguments:
     generator_name_or_path: Optional[str] = field(default=None, metadata={"help": "The generator model name or path."})
     use_cot: bool = field(default=False, metadata={'help': "Whether to use CoT in syn. QA and test."})
     num_test: Optional[int] = field(default=None, metadata={'help': "Test only the first several articles."})
+    do_check_memgate: bool = field(default=False, metadata={'help': "Whether to check memory gate values; only available with --use_gated_memory True."})
+    output_memgate_file: Optional[str] = field(default=None, metadata={'help': "The path to save the memgate values."})
+    
+    def __post_init__(self):
+        if self.do_check_memgate and self.output_memgate_file is None:
+            logging.warning("--do_check_memgate True but --output_memgate_file is not specified. The memgate values won't be saved.")
 
 
 class LooGLEDataset(ContextDataset):
@@ -175,7 +183,10 @@ def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_
     return model
 
 
-def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Dict, output_file: str, num_resumed: int=0, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False):
+def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Dict, output_file: str, saved_memgate: List, num_resumed: int=0, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, do_check_memgate: bool=False, output_memgate_file: Optional[str]=None):
+    if do_check_memgate and not lift_args['use_gated_memory']:
+        do_check_memgate = False
+        logging.warning("--do_check_mem_gate True should be used with --use_gated_memory True; set --do_check_mem_gate to False")
     tokenizer = load_tokenizer(lift_args['tokenizer_name_or_path'])
     mixin = tokenizer("...", add_special_tokens=False)['input_ids']
     model_max_length = lift_args['model_max_length']
@@ -188,6 +199,7 @@ def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Di
         qa_pairs = eval(sample['qa_pairs'])
         model = LooGLEtrain(context, title, tokenizer, training_args=training_args, num_syn_qa=num_syn_qa, title_option=title_option, generator_name_or_path=generator_name_or_path, use_cot=use_cot, **lift_args)
         model.eval()
+        saved_memgate.append([])
         for qa_pair in tqdm.tqdm(qa_pairs, desc="QA Pair"):
             if use_cot:
                 input_text = LOOGLEFORMAT_COT.format(title=title, input=context, question=qa_pair['Q'])
@@ -206,8 +218,13 @@ def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Di
                 # eos_token_id=terminators,
                 max_new_tokens=200,
                 use_cache=True,
+                return_dict_in_generate=True,
+                output_attentions=do_check_memgate
             )
-            response = tokenizer.decode(output[0][input_ids.shape[-1]:], skip_special_tokens=True)
+            response = tokenizer.decode(output.sequences[0][input_ids.shape[-1]:], skip_special_tokens=True)
+            if do_check_memgate:
+                memgate = process_ganeration_memgate(output.attentions)[0]
+                saved_memgate[-1].append(memgate.tolist())
             qa_pair['pred'] = response
         output_case = {
             'title': title,
@@ -227,6 +244,7 @@ def main():
     output_file = test_args.pop('output_file')
     overwrite = test_args.pop('overwrite')
     num_test = test_args.pop('num_test')
+    output_memgate_file = test_args.pop('output_memgate_file')
     num_resumed = 0
     if os.path.exists(output_file):
         if overwrite:
@@ -234,11 +252,21 @@ def main():
         else:
             with open(output_file, 'r') as f:
                 num_resumed = len(f.readlines())
+    saved_memgate = []
+    if output_memgate_file and os.path.exists(output_memgate_file):
+        if overwrite:
+            os.remove(output_memgate_file)
+        else:
+            with open(output_memgate_file, 'rb') as f:
+                saved_memgate = pickle.load(f)
     with open(input_file, 'r') as f:
         input_data = [json.loads(line) for line in f]
     if num_test is not None:
         input_data = input_data[:num_test]
-    prediction(input_data, training_args, lift_args, output_file, num_resumed=num_resumed, **test_args)
+    prediction(input_data, training_args, lift_args, output_file, saved_memgate, num_resumed=num_resumed, **test_args)
+    if output_memgate_file and len(saved_memgate) > 0:
+        with open(output_memgate_file, 'wb') as f:
+            pickle.dump(saved_memgate, f)
 
 
 if __name__ == '__main__':
