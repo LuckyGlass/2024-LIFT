@@ -55,7 +55,7 @@ class GMLlamaAttention(LlamaAttention):
             GroupedLinear(self.num_heads, self.head_dim, memdim, bias=config.attention_bias),
             nn.SiLU(inplace=True),
             GroupedLinear(self.num_heads, memdim, self.head_dim, bias=config.attention_bias),
-            )
+        )
         gatedim = int(self.head_dim**0.5)
         tmp = GroupedLinear(self.num_heads, gatedim, 1, bias=False)
         '''
@@ -68,7 +68,7 @@ class GMLlamaAttention(LlamaAttention):
             nn.SiLU(inplace=True),
             tmp,
             BiasSigmoid()#nn.Sigmoid()
-            )
+        )
 
     def forward(
         self,
@@ -142,9 +142,9 @@ class GMLlamaAttention(LlamaAttention):
         attn_output = self.o_proj(attn_output)
 
         if not output_attentions:
-            attn_weights = None
+            memgate = None
 
-        return attn_output, attn_weights, past_key_value, memgate
+        return attn_output, memgate, past_key_value
 
 
 class GMLlamaFlashAttention2(GMLlamaAttention):
@@ -179,8 +179,6 @@ class GMLlamaFlashAttention2(GMLlamaAttention):
                 "`static` cache implementation is not compatible with `attn_implementation==flash_attention_2` "
                 "make sure to use `sdpa` in the mean time, and open an issue at https://github.com/huggingface/transformers"
             )
-
-        output_attentions = False
 
         bsz, q_len, _ = hidden_states.size()
 
@@ -270,9 +268,9 @@ class GMLlamaFlashAttention2(GMLlamaAttention):
         attn_output = self.o_proj(attn_output)
 
         if not output_attentions:
-            attn_weights = None
+            memgate = None
 
-        return attn_output, attn_weights, past_key_value, memgate
+        return attn_output, memgate, past_key_value
 
 
 class GMLlamaSdpaAttention(GMLlamaAttention):
@@ -295,23 +293,6 @@ class GMLlamaSdpaAttention(GMLlamaAttention):
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # will become mandatory in v4.46
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        if output_attentions:
-            raise NotImplementedError
-            # TODO: Improve this warning with e.g. `model.config.attn_implementation = "manual"` once this is implemented.
-            logger.warning_once(
-                "LlamaModel is using LlamaSdpaAttention, but `torch.nn.functional.scaled_dot_product_attention` does not support `output_attentions=True`. Falling back to the manual attention implementation, "
-                'but specifying the manual implementation will be required from Transformers version v5.0.0 onwards. This warning can be removed using the argument `attn_implementation="eager"` when loading the model.'
-            )
-            return super().forward(
-                hidden_states=hidden_states,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                past_key_value=past_key_value,
-                output_attentions=output_attentions,
-                use_cache=use_cache,
-                cache_position=cache_position,
-                position_embeddings=position_embeddings,
-            )
 
         bsz, q_len, _ = hidden_states.size()
 
@@ -378,8 +359,11 @@ class GMLlamaSdpaAttention(GMLlamaAttention):
         attn_output = attn_output.view(bsz, q_len, -1)
 
         attn_output = self.o_proj(attn_output)
+        
+        if not output_attentions:
+            memgate = None
 
-        return attn_output, None, past_key_value, memgate
+        return attn_output, memgate, past_key_value
 
 
 GMLLAMA_ATTENTION_CLASSES = {
@@ -433,7 +417,7 @@ class GMLlamaDecoderLayer(LlamaDecoderLayer):
         hidden_states = self.input_layernorm(hidden_states)
 
         # Self Attention
-        hidden_states, self_attn_weights, present_key_value, memgate = self.self_attn(
+        hidden_states, memgate, present_key_value = self.self_attn(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -455,12 +439,10 @@ class GMLlamaDecoderLayer(LlamaDecoderLayer):
         outputs = (hidden_states,)
 
         if output_attentions:
-            outputs += (self_attn_weights,)
+            outputs += (memgate,)
 
         if use_cache:
             outputs += (present_key_value,)
-
-        outputs += (memgate, )
 
         return outputs
 
@@ -545,8 +527,7 @@ class GMLlamaModel(LlamaModel):
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
-        all_self_attns = () if output_attentions else None
-        all_memgates = ()
+        all_memgates = () if output_attentions else None
         next_decoder_cache = None
 
         for decoder_layer in self.layers[: self.config.num_hidden_layers]:
@@ -584,9 +565,7 @@ class GMLlamaModel(LlamaModel):
                 next_decoder_cache = layer_outputs[2 if output_attentions else 1]
 
             if output_attentions:
-                all_self_attns += (layer_outputs[1],)
-            
-            all_memgates += (layer_outputs[-1],)
+                all_memgates += (layer_outputs[1],)
 
         hidden_states = self.norm(hidden_states)
 
@@ -599,12 +578,12 @@ class GMLlamaModel(LlamaModel):
             next_cache = next_cache.to_legacy_cache()
 
         if not return_dict:
-            return tuple(v for v in [hidden_states, next_cache, all_hidden_states, all_self_attns] if v is not None) + (all_memgates, )
+            return tuple(v for v in [hidden_states, next_cache, all_hidden_states, all_memgates] if v is not None)
         return BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
             past_key_values=next_cache,
             hidden_states=all_hidden_states,
-            attentions=(all_self_attns, all_memgates),
+            attentions=all_memgates,
         )
 
 
