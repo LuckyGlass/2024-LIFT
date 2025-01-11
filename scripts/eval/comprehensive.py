@@ -13,7 +13,11 @@ Metrics:
 """
 import argparse
 import json
+import logging
+import numpy as np
+import matplotlib.pyplot as plt
 import os
+import pickle
 import tqdm
 from transformers import AutoTokenizer
 
@@ -56,9 +60,11 @@ def are_sentences_similar(sentence1, sentence2, threshold=0.5):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-S', '--source', help="The parsed output file.")
+parser.add_argument('-S', '--source', help="The parsed (or raw) output file.")
 parser.add_argument('-D', '--dest', help="The target file.")
 parser.add_argument('-G', '--gpt4score', help="The gpt4score file.")
+parser.add_argument('-M', '--memgate', help="The saved memgate pickle file.")
+parser.add_argument('--memgate_output_dir', help="The output dir to save the memgate figures (positive.svg and negative.svg).")
 parser.add_argument('--model_max_length', type=int)
 parser.add_argument('--tokenizer_name_or_path')
 parser.add_argument('--example_dir')
@@ -66,6 +72,10 @@ args = parser.parse_args()
 gpt4score_file = args.gpt4score
 source_file = args.source
 dest_file = args.dest
+memgate_file = args.memgate
+memgate_output_dir = args.memgate_output_dir
+if memgate_file is not None and memgate_output_dir is None:
+    logging.warning("--memgate (-M) is specified but --memgate_output_dir is not provided. ")
 example_dir = args.example_dir
 model_max_length = args.model_max_length
 tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name_or_path)
@@ -82,7 +92,13 @@ if gpt4score_file is None:
 else:
     with open(gpt4score_file, 'r') as f:
         data_gpt4score = [json.loads(s) for s in f]
+if memgate_file is None:
+    data_memgate = [None] * range(len(data))
+else:
+    with open(memgate_file, 'rb') as f:
+        data_memgate = pickle.load(f)
 
+# attributes
 num_ic = 0
 num_i = 0
 num_oc, example_oc = 0, []
@@ -96,12 +112,18 @@ num_r = 0
 num_rc = 0
 example_rC = []
 num_f, example_f = 0, []
-for sample, sample_gpt4score in tqdm.tqdm(zip(data, data_gpt4score)):
+# memgate
+positive_memgate = None if memgate_file is None else []
+negative_memgate = None if memgate_file is None else []
+
+for sample, sample_gpt4score, sample_memgate in tqdm.tqdm(zip(data, data_gpt4score, data_memgate), total=len(data)):
     if sample_gpt4score is None:
-        qa_pairs_gpt4score = [None] * len(sample['qa_pairs'])
+        sample_gpt4score = [None] * len(sample['qa_pairs'])
     else:
-        qa_pairs_gpt4score = [q['scores']['gpt4_score'] for q in sample_gpt4score['qa_pairs']]
-    for qa_pair, gpt4score in zip(sample['qa_pairs'], qa_pairs_gpt4score):
+        sample_gpt4score = [q['scores']['gpt4_score'] for q in sample_gpt4score['qa_pairs']]
+    if sample_memgate is None:
+        sample_memgate = [None] * len(sample['qa_pairs'])
+    for qa_pair, gpt4score, memgate in zip(sample['qa_pairs'], sample_gpt4score, sample_memgate):
         input_text = LOOGLEFORMAT_COT.format(title=sample['title'], input=sample['input'], question=qa_pair['Q'])
         input_ids = tokenizer(input_text, add_special_tokens=False)['input_ids']
         if len(input_ids) > model_max_length:
@@ -117,6 +139,10 @@ for sample, sample_gpt4score in tqdm.tqdm(zip(data, data_gpt4score)):
         else:
             retrieved = False
             fail = True
+        # memgate
+        if memgate is not None:
+            if correct:  positive_memgate.append(memgate)
+            else:  negative_memgate.append(memgate)
         #
         qa_pair['S_is_in_ICLcontext'] = in_context
         qa_pair['Retrieved'] = retrieved
@@ -180,3 +206,15 @@ if example_dir is not None:
         json.dump(example_f, f, indent=4, ensure_ascii=False)
 with open(dest_file, 'w', encoding='utf-8') as f:
     json.dump(data, f, indent=4, ensure_ascii=False)
+if memgate_output_dir is not None:
+    os.makedirs(memgate_output_dir, exist_ok=True)
+    plt.cla()
+    for memgate in positive_memgate:
+        memgate.sort()
+        plt.plot(np.linspace(0, 1, len(memgate), endpoint=True), memgate)
+    plt.savefig(os.path.join(memgate_output_dir, 'positive.svg'))
+    plt.cla()
+    for memgate in negative_memgate:
+        memgate.sort()
+        plt.plot(np.linspace(0, 1, len(memgate), endpoint=True), memgate)
+    plt.savefig(os.path.join(memgate_output_dir, 'negative.svg'))
