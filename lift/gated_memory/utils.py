@@ -32,6 +32,5 @@ def process_ganeration_memgate(memgate: Sequence[Sequence[torch.Tensor]]):
     Returns:
         avg_memgate (Tensor): The memgate of output tokens averaged over layers and heads, in the shape of [Batch, New token].
     """
-    avg_memgate = torch.stack([torch.stack([torch.mean(layer[:, :, -1, 0], dim=1) for layer in token]) for token in memgate])
-    avg_memgate = torch.mean(avg_memgate, dim=1).transpose(0, 1)
-    return avg_memgate
+    memgate = torch.stack([torch.stack([layer[:, :, -1, 0] for layer in token], dim=1) for token in memgate], dim=1)
+    return memgate
