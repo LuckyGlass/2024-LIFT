@@ -224,7 +224,7 @@ def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Di
             response = tokenizer.decode(output.sequences[0][input_ids.shape[-1]:], skip_special_tokens=True)
             if do_check_memgate:
                 memgate = process_ganeration_memgate(output.attentions)[0]
-                saved_memgate[-1].append(memgate.tolist())
+                saved_memgate[-1].append(memgate.cpu().detach())
             qa_pair['pred'] = response
         output_case = {
             'title': title,
