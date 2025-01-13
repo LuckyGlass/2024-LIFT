@@ -144,13 +144,9 @@ class LooGLEDataset(ContextDataset):
             answer = '\n'.join(['- ' + e for e in evidences]) + "\n# Answer:\n" + answer.strip() + "\n# End of answer"
         else:
             input_text = LOOGLEFORMAT.format(title=title, input=full_context, question=question)
-        messages = [
-            {'role': 'system', 'content': "You are a helpful assistant."},
-            {'role': 'user', 'content': input_text},
-            {'role': 'assistant', 'content': answer}
-        ]
-        input_length = len(self.tokenizer.apply_chat_template(messages[:-1], add_generation_prompt=True))
-        input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=False)
+        example = input_text + ' ' + answer
+        input_ids = self.tokenizer(example, add_special_tokens=False)['input_ids']
+        input_length = len(self.tokenizer(input_text, add_special_tokens=False)['input_ids']) 
         mixin = self.tokenizer("...", add_special_tokens=False)['input_ids']
         output_length = len(input_ids) - input_length
         if len(input_ids) > model_max_length:
