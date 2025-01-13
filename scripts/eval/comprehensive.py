@@ -208,13 +208,21 @@ with open(dest_file, 'w', encoding='utf-8') as f:
     json.dump(data, f, indent=4, ensure_ascii=False)
 if memgate_output_dir is not None:
     os.makedirs(memgate_output_dir, exist_ok=True)
-    plt.cla()
     for memgate in positive_memgate:
-        memgate.sort()
-        plt.plot(np.linspace(0, 1, len(memgate), endpoint=True), memgate)
-    plt.savefig(os.path.join(memgate_output_dir, 'positive.svg'))
-    plt.cla()
+        plt.cla()
+        num_layer, num_head = memgate.shape[1:]
+        for layer in range(num_layer):
+            for head in range(num_head):
+                token_memgate = memgate[:, layer, head].tolist()
+                token_memgate.sort()
+                plt.plot(np.linspace(0, 1, len(token_memgate), endpoint=True), token_memgate)
+        plt.savefig(os.path.join(memgate_output_dir, f'positive.layer{layer:02d}.head{head:02d}.svg'))
     for memgate in negative_memgate:
-        memgate.sort()
-        plt.plot(np.linspace(0, 1, len(memgate), endpoint=True), memgate)
-    plt.savefig(os.path.join(memgate_output_dir, 'negative.svg'))
+        plt.cla()
+        num_layer, num_head = memgate.shape[1:]
+        for layer in range(num_layer):
+            for head in range(num_head):
+                token_memgate = memgate[:, layer, head].tolist()
+                token_memgate.sort()
+                plt.plot(np.linspace(0, 1, len(token_memgate), endpoint=True), token_memgate)
+        plt.savefig(os.path.join(memgate_output_dir, f'negative.layer{layer:02d}.head{head:02d}.svg'))
