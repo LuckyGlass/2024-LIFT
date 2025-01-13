@@ -73,10 +73,10 @@ def train(model: PreTrainedModel, dataset: ContextDataset, tokenizer: PreTrained
         training_args_syn = deepcopy(training_args)
         training_args_syn.num_train_epochs = involve_qa_epochs
         if qa_lr is not None:
-            print('!' * 20, qa_lr)
             training_args_syn.learning_rate = qa_lr
             for param_group in trainer.optimizer.param_groups:
                 param_group['lr'] = qa_lr
+                param_group['initial_lr'] = qa_lr
         trainer_syn, model = load_trainer(
             model=model,
             training_dataset=dataset,
