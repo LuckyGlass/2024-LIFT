@@ -40,7 +40,7 @@ def load_trainer(model: PreTrainedModel, training_dataset: Dataset, tokenizer: P
     return trainer, model
 
 
-def train(model: PreTrainedModel, dataset: ContextDataset, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, involve_qa_epochs: int=0, gather_batches: bool=True):
+def train(model: PreTrainedModel, dataset: ContextDataset, tokenizer: PreTrainedTokenizer, training_args: TrainingArguments, involve_qa_epochs: int=0, gather_batches: bool=True, qa_lr: Optional[float]=None):
     """Fine-tune the model and the corresponding tokenizer.
     Args:
         model (PreTrainedModel): the model to fine-tune.
@@ -49,6 +49,7 @@ def train(model: PreTrainedModel, dataset: ContextDataset, tokenizer: PreTrained
         training_args (TrainingArguments): the huggingface training arguments.
         involve_qa_epochs (int): OPTIONAL, default to `0`; the number of epochs to involve QA pairs.
         gather_batches (bool): OPTIONAL, default to `True`; if `gather_batches=True`, it will force the trainer to update the model only once every epoch; it may lead to more stable gradients.
+        qa_lr (float): OPTIONAL, default to `None`; the learning rate for stage-2 training.
     Returns:
         model_tokenizer_pair (tuple[PreTrainedModel, PreTrainedTokenizer]): the fine-tuned model and the corresponding tokenizer.
     """
@@ -71,6 +72,11 @@ def train(model: PreTrainedModel, dataset: ContextDataset, tokenizer: PreTrained
         dataset.enable_qa()
         training_args_syn = deepcopy(training_args)
         training_args_syn.num_train_epochs = involve_qa_epochs
+        if qa_lr is not None:
+            print('!' * 20, qa_lr)
+            training_args_syn.learning_rate = qa_lr
+            for param_group in trainer.optimizer.param_groups:
+                param_group['lr'] = qa_lr
         trainer_syn, model = load_trainer(
             model=model,
             training_dataset=dataset,
