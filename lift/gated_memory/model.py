@@ -632,6 +632,7 @@ class GMLlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
         num_logits_to_keep: int = 0,
+        regularization_scale: Optional[torch.FloatTensor] = None,
         **kwargs,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
@@ -678,7 +679,7 @@ class GMLlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
             use_cache=use_cache,
-            output_attentions=output_attentions,
+            output_attentions=True,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             cache_position=cache_position,
@@ -692,7 +693,16 @@ class GMLlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
         loss = None
         if labels is not None:
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
+            shifted_memgate = regularization_scale[:, None, None, None] * torch.stack(outputs.attentions, dim=1)[:, :, :, :-1, 0]  # (Batch, Layer, Head, Token)
+            shifted_memgate = shifted_memgate.transpose(1, 3)  # (Batch, Token, Head, Layer)
+            shifted_labels = labels[:, 1:]
+            masked_memgate = shifted_memgate[shifted_labels != -100]  # NOTE: may consider special ignore_index
+            loss_regularization = torch.mean(masked_memgate)  # using the mean of memgate as regularization
+            loss += loss_regularization
 
+        if not output_attentions:
+            outputs.attentions = None
+        
         if not return_dict:
             output = (logits,) + outputs[1:]
             return (loss,) + output if loss is not None else output

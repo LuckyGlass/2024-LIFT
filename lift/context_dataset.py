@@ -12,7 +12,7 @@ from copy import deepcopy
 class ContextDataset(Dataset):
     """Given a piece of context, `ContextDataset` creates a torch-Dataset, using the truncation strategy described in our paper.
     """
-    def __init__(self, context: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3):
+    def __init__(self, context: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, regularization_scale: float=.0):
         """
         Args:
             context (str): the context to train on.
@@ -21,6 +21,7 @@ class ContextDataset(Dataset):
             block_size (int): OPTIONAL, default to `256`; the number of tokens in a block; a block is the unit of segments and offsets.
             len_segment (int): OPTIONAL, default to `8`; the number of units in a segment; the article is divided into segments.
             len_offset (int): OPTIONAL, default to `3`; the number of units per offset; it determines the offset from one segment to the next one.
+            regularization_scale (float): OPTIONAL, default to `0`; the memgate regularization scale.
         """
         self.ignore_index = -100  # The default value for ignored labels in torch
         self.tokenizer = tokenizer
@@ -32,6 +33,7 @@ class ContextDataset(Dataset):
         # Generate datapoints
         self.data = [(input_ids[s:s+len_segment], 0) for s in range(0, len(input_ids), len_offset)]
         self.num_segments = len(self.data)  # record the number of context datapoints
+        self.regularization_scale = regularization_scale
 
     def __len__(self):
         return self.num_segments
@@ -51,6 +53,7 @@ class ContextDataset(Dataset):
             'input_ids': input_ids,
             'labels': labels,
             'attention_mask': attention_mask,
+            'regularization_scale': self.regularization_scale
         }
     
     def __getitem__(self, index):

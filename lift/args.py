@@ -57,6 +57,7 @@ class CustomTrainingArguments:
     load_in_8bit: bool = field(default=False)
     gather_batches: bool = field(default=False)
     involve_qa_epochs: int = field(default=0)
+    regularization_scale: float = field(default=.0, metadata={'help': "the memgate regularization scale."})
     
     def __post_init__(self):
         assert not self.load_in_8bit, "8-bit loading is not supported yet."
