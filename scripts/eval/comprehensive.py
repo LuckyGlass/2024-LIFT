@@ -93,7 +93,7 @@ else:
     with open(gpt4score_file, 'r') as f:
         data_gpt4score = [json.loads(s) for s in f]
 if memgate_file is None:
-    data_memgate = [None] * range(len(data))
+    data_memgate = [None] * len(data)
 else:
     with open(memgate_file, 'rb') as f:
         data_memgate = pickle.load(f)
