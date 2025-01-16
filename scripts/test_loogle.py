@@ -64,14 +64,20 @@ class TestArguments:
     num_test: Optional[int] = field(default=None, metadata={'help': "Test only the first several articles."})
     do_check_memgate: bool = field(default=False, metadata={'help': "Whether to check memory gate values; only available with --use_gated_memory True."})
     output_memgate_file: Optional[str] = field(default=None, metadata={'help': "The path to save the memgate values."})
+    mix_training: bool = field(default=True, metadata={'help': "Use mix-training."})
+    qa_lr: Optional[float] = field(default=None, metadata={'help': "The learning rate when training the model with QAs; available with --max_training=False."})
     
     def __post_init__(self):
         if self.do_check_memgate and self.output_memgate_file is None:
             logging.warning("--do_check_memgate True but --output_memgate_file is not specified. The memgate values won't be saved.")
+        if self.qa_lr is not None and self.mix_training:
+            logging.warning("--qa_lr is available only when --mix_training=False (default to True); ignore --qa_lr.")
+            self.qa_lr = None
 
 
 class LooGLEDataset(ContextDataset):
-    def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False):
+    def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, mix_training: bool=True):
+        self.mix_training = mix_training
         # Option 1: prepend title before context
         if title_option == 1:
             context = title + '\n' + context
@@ -152,13 +158,9 @@ class LooGLEDataset(ContextDataset):
             answer = '\n'.join(['- ' + e for e in evidences]) + "\n# Answer:\n" + answer.strip() + "\n# End of answer"
         else:
             input_text = LOOGLEFORMAT.format(title=title, input=full_context, question=question)
-        messages = [
-            {'role': 'system', 'content': "You are a helpful assistant."},
-            {'role': 'user', 'content': input_text},
-            {'role': 'assistant', 'content': answer}
-        ]
-        input_length = len(self.tokenizer.apply_chat_template(messages[:-1], add_generation_prompt=True))
-        input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=False)
+        example = input_text + ' ' + answer
+        input_ids = self.tokenizer(example, add_special_tokens=False)['input_ids']
+        input_length = len(self.tokenizer(input_text, add_special_tokens=False)['input_ids']) 
         mixin = self.tokenizer("...", add_special_tokens=False)['input_ids']
         output_length = len(input_ids) - input_length
         if len(input_ids) > model_max_length:
@@ -172,21 +174,26 @@ class LooGLEDataset(ContextDataset):
     def disable_qa(self):
         self.enable_qa_tag = False
     
+    def __getitem__(self, index: int):
+        if self.mix_training:
+            return super().__getitem__(index)
+        else:
+            return super().__getitem__(index + self.num_segments) if self.enable_qa_tag else super().__getitem__(index)
+    
     def __len__(self):
-        return len(self.data) if self.enable_qa_tag else self.num_segments
+        if self.mix_training:
+            return len(self.data) if self.enable_qa_tag else self.num_segments
+        else:
+            return len(self.data) - self.num_segments if self.enable_qa_tag else self.num_segments
     
     
-def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_gated_memory: bool=False, use_cot: bool=False, **kwargs):
-    dataset = LooGLEDataset(context, title, tokenizer, model_max_length, block_size, len_segment, len_offset, num_syn_qa, title_option, generator_name_or_path, use_cot)
+def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_gated_memory: bool=False, use_cot: bool=False, mix_training: bool=True, qa_lr: Optional[float]=None, **kwargs):
+    dataset = LooGLEDataset(context, title, tokenizer, model_max_length, block_size, len_segment, len_offset, num_syn_qa, title_option, generator_name_or_path, use_cot, mix_training)
     model = load_model(model_name_or_path=model_name_or_path, use_lora=use_lora, lora_rank=lora_rank, use_pissa=use_pissa, load_in_4bit=load_in_4bit, vocab_size=len(tokenizer), use_gated_memory=use_gated_memory)
-    model = train(model, dataset, tokenizer, training_args, involve_qa_epochs, gather_batches)[0]
+    model = train(model, dataset, tokenizer, training_args, involve_qa_epochs, gather_batches, qa_lr=qa_lr)[0]
     return model
 
-
-def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Dict, output_file: str, saved_memgate: List, num_resumed: int=0, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, do_check_memgate: bool=False, output_memgate_file: Optional[str]=None):
-    if do_check_memgate and not lift_args['use_gated_memory']:
-        do_check_memgate = False
-        logging.warning("--do_check_mem_gate True should be used with --use_gated_memory True; set --do_check_mem_gate to False")
+def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Dict, output_file: str, saved_memgate: List, num_resumed: int=0, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, do_check_memgate: bool=False, output_memgate_file: Optional[str]=None, **test_args):
     tokenizer = load_tokenizer(lift_args['tokenizer_name_or_path'])
     mixin = tokenizer("...", add_special_tokens=False)['input_ids']
     model_max_length = lift_args['model_max_length']
@@ -197,11 +204,11 @@ def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Di
         context = sample['input']
         title = sample['title']
         qa_pairs = eval(sample['qa_pairs'])
-        model = LooGLEtrain(context, title, tokenizer, training_args=training_args, num_syn_qa=num_syn_qa, title_option=title_option, generator_name_or_path=generator_name_or_path, use_cot=use_cot, **lift_args)
+        model = LooGLEtrain(context, title, tokenizer, training_args=training_args, **test_args, **lift_args)
         model.eval()
         saved_memgate.append([])
         for qa_pair in tqdm.tqdm(qa_pairs, desc="QA Pair"):
-            if use_cot:
+            if test_args['use_cot']:
                 input_text = LOOGLEFORMAT_COT.format(title=title, input=context, question=qa_pair['Q'])
             else:
                 input_text = LOOGLEFORMAT.format(title=title, input=context, question=qa_pair['Q'])
