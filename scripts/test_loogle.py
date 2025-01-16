@@ -76,12 +76,12 @@ class TestArguments:
 
 
 class LooGLEDataset(ContextDataset):
-    def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, mix_training: bool=True):
+    def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, mix_training: bool=True, regularization_scale: float=.0):
         self.mix_training = mix_training
         # Option 1: prepend title before context
         if title_option == 1:
             context = title + '\n' + context
-        super().__init__(context, tokenizer, model_max_length, block_size, len_segment, len_offset)
+        super().__init__(context, tokenizer, model_max_length, block_size, len_segment, len_offset, regularization_scale)
         # Option 2: prepend title before each segment and predict the whole segment
         if title_option == 2:
             snippet = tokenizer(f"A snippet of {title}: ", add_special_tokens=False)['input_ids']
@@ -187,13 +187,27 @@ class LooGLEDataset(ContextDataset):
             return len(self.data) - self.num_segments if self.enable_qa_tag else self.num_segments
     
     
-def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_gated_memory: bool=False, use_cot: bool=False, mix_training: bool=True, qa_lr: Optional[float]=None, **kwargs):
-    dataset = LooGLEDataset(context, title, tokenizer, model_max_length, block_size, len_segment, len_offset, num_syn_qa, title_option, generator_name_or_path, use_cot, mix_training)
+def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_gated_memory: bool=False, use_cot: bool=False, mix_training: bool=True, qa_lr: Optional[float]=None, regularization_scale: float=.0, **kwargs):
+    dataset = LooGLEDataset(
+        context=context,
+        title=title,
+        tokenizer=tokenizer,
+        model_max_length=model_max_length,
+        block_size=block_size,
+        len_segment=len_segment,
+        len_offset=len_offset,
+        num_syn_qa=num_syn_qa,
+        title_option=title_option,
+        generator_name_or_path=generator_name_or_path,
+        use_cot=use_cot,
+        mix_training=mix_training,
+        regularization_scale=regularization_scale
+    )
     model = load_model(model_name_or_path=model_name_or_path, use_lora=use_lora, lora_rank=lora_rank, use_pissa=use_pissa, load_in_4bit=load_in_4bit, vocab_size=len(tokenizer), use_gated_memory=use_gated_memory)
     model = train(model, dataset, tokenizer, training_args, involve_qa_epochs, gather_batches, qa_lr=qa_lr)[0]
     return model
 
-def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Dict, output_file: str, saved_memgate: List, num_resumed: int=0, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, do_check_memgate: bool=False, output_memgate_file: Optional[str]=None, **test_args):
+def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Dict, output_file: str, saved_memgate: List, num_resumed: int=0, do_check_memgate: bool=False, **test_args):
     tokenizer = load_tokenizer(lift_args['tokenizer_name_or_path'])
     mixin = tokenizer("...", add_special_tokens=False)['input_ids']
     model_max_length = lift_args['model_max_length']
