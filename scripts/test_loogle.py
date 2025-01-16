@@ -38,9 +38,7 @@ Please recall one or several original sentences from article {title} as evidence
 Please answer in the following format:
 
 # Evidence:
-- [evidence 1]
-- [evidence 2]
-...
+[evidence]
 # Answer:
 [answer]
 # End of answer
@@ -93,7 +91,7 @@ class LooGLEDataset(ContextDataset):
         # Generate QA pairs
         if num_syn_qa > 0:
             context_sent = sent_tokenize(context)
-            assert len(context_sent) >= 25, "The length of the context should be at least 25 sentences."
+            assert len(context_sent) >= 16, "The length of the context should be at least 25 sentences."
             generator = AutoModelForCausalLM.from_pretrained(
                 generator_name_or_path,
                 device_map='auto',
@@ -114,8 +112,8 @@ class LooGLEDataset(ContextDataset):
     
     @torch.no_grad()
     def generate_task(self, generator: PreTrainedModel, full_context: str, context_sent: List[str], title: str, model_max_length: int, use_cot: bool=False):
-        st_pos = randint(0, len(context_sent) - 25)
-        context = ' '.join(context_sent[st_pos:st_pos+25])
+        st_pos = randint(0, len(context_sent) - 16)
+        context = ' '.join(context_sent[st_pos:st_pos+16])
         messages = [
             {
                 'role': "system",
@@ -123,7 +121,7 @@ class LooGLEDataset(ContextDataset):
             },
             {
                 'role': "user", 
-                'content': f"You are given a piece of text as the context. You should generate ONLY one question and the corresponding answer according to the context. You should also select one or more sentences directly from the original context as the evidences. The evidences must be verbatim sentences from the context. Please answer in the following format: \nQuestion: [question] \nAnswer: [answer] \nEvidence: \n- [evidence 1] \n- [evidence 2] \n...\nPlease DON'T output quotes when outputting evidences. The following is the piece of text: {context}"
+                'content': f"You are given a piece of text as the context. You should generate ONLY one question and the corresponding answer according to the context. You should also select one or more sentences directly from the original context as the evidence. The evidences must be verbatim sentences from the context. Please answer in the following format: \nQuestion: [question] \nAnswer: [answer] \nEvidence: [evidence]\nPlease DON'T output quotes when outputting evidences. The following is the piece of text: {context}"
             }
         ]
         input_ids = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt").to(generator.device)
@@ -146,16 +144,16 @@ class LooGLEDataset(ContextDataset):
                 continue
             question = response[question_position + 9:answer_position].strip()
             answer = response[answer_position + 7:evidence_position].strip()
-            evidences = response[evidence_position + 9:].strip().split('\n')
-            evidences = list(map(lambda s: s[s.find('-') + 2:].strip(), evidences))
+            evidence = response[evidence_position + 9:].strip()
+            if evidence not in context:
+                continue
             break
         else:
             logging.warning("Fail to generate a QA pair, skip.")
             return None
-            # raise ValueError("Failed to generate a QA pair.")
         if use_cot:
             input_text = LOOGLEFORMAT_COT.format(title=title, input=full_context, question=question)
-            answer = '\n'.join(['- ' + e for e in evidences]) + "\n# Answer:\n" + answer.strip() + "\n# End of answer"
+            answer = evidence + "\n# Answer:\n" + answer + "\n# End of answer"
         else:
             input_text = LOOGLEFORMAT.format(title=title, input=full_context, question=question)
         example = input_text + ' ' + answer
