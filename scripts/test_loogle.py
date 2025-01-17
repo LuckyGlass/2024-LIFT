@@ -19,6 +19,7 @@ from lift.context_dataset import ContextDataset
 from lift.model import load_tokenizer, load_model
 from lift.train import train
 from lift.gated_memory.utils import process_ganeration_memgate
+from lift.utils import set_all_seeds
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from numpy.random import randint
@@ -297,4 +298,5 @@ def main():
 
 
 if __name__ == '__main__':
+    set_all_seeds(0)
     main()
