@@ -64,6 +64,7 @@ class TestArguments:
     output_memgate_file: Optional[str] = field(default=None, metadata={'help': "The path to save the memgate values."})
     mix_training: bool = field(default=True, metadata={'help': "Use mix-training."})
     qa_lr: Optional[float] = field(default=None, metadata={'help': "The learning rate when training the model with QAs; available with --max_training=False."})
+    supervise_in_context: bool = field(default=False, metadata={'help': "Supervise memgate -> 0 for in-context syn. QAs."})
     
     def __post_init__(self):
         if self.do_check_memgate and self.output_memgate_file is None:
@@ -74,8 +75,9 @@ class TestArguments:
 
 
 class LooGLEDataset(ContextDataset):
-    def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, mix_training: bool=True, regularization_scale: float=.0):
+    def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, mix_training: bool=True, regularization_scale: float=.0, supervise_in_context: bool=False):
         self.mix_training = mix_training
+        self.supervise_in_context = supervise_in_context
         # Option 1: prepend title before context
         if title_option == 1:
             context = title + '\n' + context
@@ -134,7 +136,7 @@ class LooGLEDataset(ContextDataset):
                 max_new_tokens=1024,
                 pad_token_id=self.tokenizer.eos_token_id,
                 eos_token_id=terminators,
-                do_sample=False,
+                do_sample=True,
             )
             response = self.tokenizer.decode(outputs[0][input_ids.shape[-1]:], skip_special_tokens=True)
             question_position = response.find("Question:")
@@ -164,7 +166,11 @@ class LooGLEDataset(ContextDataset):
         if len(input_ids) > model_max_length:
             input_ids = input_ids[:model_max_length//2 - len(mixin)] + mixin + input_ids[-model_max_length//2:]
             input_length = len(input_ids) - output_length
-        return (input_ids, input_length)
+        if self.supervise_in_context:
+            input_text = self.tokenizer.decode(input_ids[:input_length])
+            return (input_ids, input_length, evidence in input_text)
+        else:
+            return (input_ids, input_length)
     
     def enable_qa(self):
         self.enable_qa_tag = True
@@ -185,7 +191,7 @@ class LooGLEDataset(ContextDataset):
             return len(self.data) - self.num_segments if self.enable_qa_tag else self.num_segments
     
     
-def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_gated_memory: bool=False, use_cot: bool=False, mix_training: bool=True, qa_lr: Optional[float]=None, regularization_scale: float=.0, **kwargs):
+def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_gated_memory: bool=False, use_cot: bool=False, mix_training: bool=True, qa_lr: Optional[float]=None, regularization_scale: float=.0, supervise_in_context: bool=False, **kwargs):
     dataset = LooGLEDataset(
         context=context,
         title=title,
@@ -199,7 +205,8 @@ def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_
         generator_name_or_path=generator_name_or_path,
         use_cot=use_cot,
         mix_training=mix_training,
-        regularization_scale=regularization_scale
+        regularization_scale=regularization_scale,
+        supervise_in_context=supervise_in_context
     )
     model = load_model(model_name_or_path=model_name_or_path, use_lora=use_lora, lora_rank=lora_rank, use_pissa=use_pissa, load_in_4bit=load_in_4bit, vocab_size=len(tokenizer), use_gated_memory=use_gated_memory)
     model = train(model, dataset, tokenizer, training_args, involve_qa_epochs, gather_batches, qa_lr=qa_lr)[0]

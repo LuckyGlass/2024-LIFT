@@ -5,7 +5,7 @@ from transformers import (
     AutoModelForCausalLM,
     BitsAndBytesConfig
 )
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Union
 from copy import deepcopy
 
 
@@ -38,8 +38,12 @@ class ContextDataset(Dataset):
     def __len__(self):
         return self.num_segments
 
-    def preprocessing(self, example: Tuple[List[int], int]):
-        input_ids, len_input = example
+    def preprocessing(self, example: Union[Tuple[List[int], int], Tuple[List[int], int, bool]]):
+        if len(example) == 3:
+            input_ids, len_input, do_regularization = example
+        else:
+            input_ids, len_input = example
+            do_regularization = True
         labels = deepcopy(input_ids)
         # Clip and truncation
         input_ids = input_ids[:self.model_max_length]
@@ -53,7 +57,7 @@ class ContextDataset(Dataset):
             'input_ids': input_ids,
             'labels': labels,
             'attention_mask': attention_mask,
-            'regularization_scale': self.regularization_scale
+            'regularization_scale': self.regularization_scale if do_regularization else .0
         }
     
     def __getitem__(self, index):
