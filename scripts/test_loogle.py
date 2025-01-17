@@ -238,7 +238,8 @@ def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Di
                 max_new_tokens=200,
                 use_cache=True,
                 return_dict_in_generate=True,
-                output_attentions=do_check_memgate
+                output_attentions=do_check_memgate,
+                do_sample=False
             )
             response = tokenizer.decode(output.sequences[0][input_ids.shape[-1]:], skip_special_tokens=True)
             if do_check_memgate:
