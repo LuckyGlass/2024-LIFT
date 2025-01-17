@@ -219,6 +219,7 @@ def prediction(data: List[Dict], training_args: TrainingArguments, lift_args: Di
                 # eos_token_id=terminators,
                 max_new_tokens=200,
                 use_cache=True,
+                do_sample=False
             )
             response = tokenizer.decode(output[0][input_ids.shape[-1]:], skip_special_tokens=True)
             qa_pair['pred'] = response
