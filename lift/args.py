@@ -45,6 +45,10 @@ class DataTrainingArguments:
             )
         }
     )
+    segment_prefix: str = field(default="", metadata={'help': "The prefix prepend to each segment."})
+
+    def __post_init__(self):
+        self.segment_prefix = eval("\"\"\"" + self.segment_prefix + "\"\"\"")
 
 
 @dataclass

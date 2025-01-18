@@ -73,24 +73,26 @@ class TestArguments:
         if self.qa_lr is not None and self.mix_training:
             logging.warning("--qa_lr is available only when --mix_training=False (default to True); ignore --qa_lr.")
             self.qa_lr = None
+        if self.title_option != 1:
+            logging.warning("--title_option is deprecated and fixed to 1.")
+            self.title_option = 1
 
 
 class LooGLEDataset(ContextDataset):
-    def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, mix_training: bool=True, regularization_scale: float=.0, supervise_in_context: bool=False):
+    def __init__(self, context: str, title: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_cot: bool=False, mix_training: bool=True, regularization_scale: float=.0, supervise_in_context: bool=False, segment_prefix: str=""):
         self.mix_training = mix_training
         self.supervise_in_context = supervise_in_context
-        # Option 1: prepend title before context
-        if title_option == 1:
-            context = title + '\n' + context
-        super().__init__(context, tokenizer, model_max_length, block_size, len_segment, len_offset, regularization_scale)
-        # Option 2: prepend title before each segment and predict the whole segment
-        if title_option == 2:
-            snippet = tokenizer(f"A snippet of {title}: ", add_special_tokens=False)['input_ids']
-            self.data = [(snippet + input_ids, 0) for input_ids, _ in self.data]
-        # Option 3: prepend title before each segment and predict the content
-        if title_option == 3:
-            snippet = tokenizer(f"A snippet of {title}: ", add_special_tokens=False)['input_ids']
-            self.data = [(snippet + input_ids, len(snippet)) for input_ids, _ in self.data]
+        context = title + '\n' + context
+        super().__init__(
+            context=context,
+            tokenizer=tokenizer,
+            model_max_length=model_max_length,
+            block_size=block_size,
+            len_segment=len_segment,
+            len_offset=len_offset,
+            regularization_scale=regularization_scale,
+            segment_prefix=segment_prefix
+        )
         # Generate QA pairs
         if num_syn_qa > 0:
             context_sent = sent_tokenize(context)
@@ -193,7 +195,7 @@ class LooGLEDataset(ContextDataset):
             return len(self.data) - self.num_segments if self.enable_qa_tag else self.num_segments
     
     
-def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_gated_memory: bool=False, use_cot: bool=False, mix_training: bool=True, qa_lr: Optional[float]=None, regularization_scale: float=.0, supervise_in_context: bool=False, **kwargs):
+def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_name_or_path: str, training_args: TrainingArguments, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, use_lora: bool=False, lora_rank: Optional[int]=None, use_pissa: bool=False, load_in_4bit: bool=False, involve_qa_epochs: int=0, gather_batches: bool=True, num_syn_qa: int=0, title_option: int=1, generator_name_or_path: Optional[str]=None, use_gated_memory: bool=False, use_cot: bool=False, mix_training: bool=True, qa_lr: Optional[float]=None, regularization_scale: float=.0, supervise_in_context: bool=False, segment_prefix: str="", **kwargs):
     dataset = LooGLEDataset(
         context=context,
         title=title,
@@ -208,7 +210,8 @@ def LooGLEtrain(context: str, title: str, tokenizer: PreTrainedTokenizer, model_
         use_cot=use_cot,
         mix_training=mix_training,
         regularization_scale=regularization_scale,
-        supervise_in_context=supervise_in_context
+        supervise_in_context=supervise_in_context,
+        segment_prefix=segment_prefix
     )
     model = load_model(model_name_or_path=model_name_or_path, use_lora=use_lora, lora_rank=lora_rank, use_pissa=use_pissa, load_in_4bit=load_in_4bit, vocab_size=len(tokenizer), use_gated_memory=use_gated_memory)
     model = train(model, dataset, tokenizer, training_args, involve_qa_epochs, gather_batches, qa_lr=qa_lr)[0]

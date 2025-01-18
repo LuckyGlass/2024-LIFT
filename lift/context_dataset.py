@@ -12,7 +12,7 @@ from copy import deepcopy
 class ContextDataset(Dataset):
     """Given a piece of context, `ContextDataset` creates a torch-Dataset, using the truncation strategy described in our paper.
     """
-    def __init__(self, context: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, regularization_scale: float=.0):
+    def __init__(self, context: str, tokenizer: PreTrainedTokenizer, model_max_length: int=4096, block_size: int=256, len_segment: int=8, len_offset: int=3, regularization_scale: float=.0, segment_prefix: str=""):
         """
         Args:
             context (str): the context to train on.
@@ -31,7 +31,11 @@ class ContextDataset(Dataset):
         len_segment = len_segment * block_size
         len_offset = len_offset * block_size
         # Generate datapoints
-        self.data = [(input_ids[s:s+len_segment], 0) for s in range(0, len(input_ids), len_offset)]
+        if len(segment_prefix) > 0:
+            prefix_ids = self.tokenizer(segment_prefix, add_special_tokens=False)['input_ids']
+        else:
+            prefix_ids = []
+        self.data = [(prefix_ids + input_ids[s:s+len_segment], len(prefix_ids)) for s in range(0, len(input_ids), len_offset)]
         self.num_segments = len(self.data)  # record the number of context datapoints
         self.regularization_scale = regularization_scale
 
