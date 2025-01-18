@@ -36,7 +36,6 @@ python scripts/test_loogle.py \
     --output_dir models/temp \
     --overwrite_output_dir True \
     --per_device_train_batch_size 1 \
-    --learning_rate 1e-5 \
     --weight_decay 1e-4 \
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
