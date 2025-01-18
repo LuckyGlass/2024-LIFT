@@ -107,7 +107,7 @@ class LooGLEDataset(ContextDataset):
                 ),
             )
             generator.eval()
-            for _ in range(num_syn_qa):
+            for _ in tqdm.tqdm(range(num_syn_qa), desc="Syn QA"):
                 result = self.generate_task(generator, context, context_sent, title, model_max_length, use_cot)
                 if result is not None:
                     self.data.append(result)
@@ -138,6 +138,7 @@ class LooGLEDataset(ContextDataset):
                 pad_token_id=self.tokenizer.eos_token_id,
                 eos_token_id=terminators,
                 do_sample=True,
+                use_cache=True
             )
             response = self.tokenizer.decode(outputs[0][input_ids.shape[-1]:], skip_special_tokens=True)
             question_position = response.find("Question:")
